@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Solar System Animation</title>
+  <!-- Enabled pinch and zoom -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <style>
+    body {
+      margin: 0;
+      background-color: black;
+      overflow: hidden; /* Prevent scrolling */
+    }
+    #canvas {
+      display: block;
+      margin: 0 auto;
+      background-color: black;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+    }
+    #controls button {
+      padding: 15px; /* Increased padding */
+      margin-right: 5px;
+      font-size: 18px; /* Increased font size */
+    }
+    #summaryBox {
+      position: absolute;
+      top: 70px; /* Moved down below the buttons */
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 20px;
+      box-sizing: border-box;
+      display: none; /* Hidden by default */
+      overflow-y: auto;
+    }
+    #summaryBox h2 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button id="pausePlayBtn">Pause</button>
+    <button id="slowDownBtn">Slow Down</button>
+    <button id="speedUpBtn">Speed Up</button>
+    <!-- Zoom In/Out button will be added dynamically -->
+  </div>
+  <div id="summaryBox">
+    <!-- Planet or Moon summary will be displayed here -->
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Variables for pan and zoom
+    let scale = 1;
+    let translatePos = { x: 0, y: 0 };
+    let lastTouchDistance = null;
+    let lastTouchPosition = null;
+
+    // Variables for pause/play and speed control
+    let isPaused = false;
+    let speedMultiplier = 1;
+
+    // Variables for time and center position
+    let lastTime = Date.now();
+    let time = 0;
+
+    // Variables for selection and zooming
+    let selectedBody = null;
+    let isZoomedIn = false;
+    let zoomInBtn = null;
+
+    // Scale factors for visualization purposes
+    const orbitScale = 1;    // Expanded scale
+    const tilt = 0.5;        // Tilt factor for 3D effect
+
+    // Planet and moon data
+    const bodies = [
+      {
+        name: 'Sun',
+        radius: 14,
+        orbitRadius: 0,
+        color: 'yellow',
+        orbitalPeriod: 0,
+        moons: [],
+        summary: 'The Sun is the star at the center of the Solar System.'
+      },
+      {
+        name: 'Mercury',
+        radius: 4,
+        orbitRadius: 60 * orbitScale,
+        color: 'gray',
+        orbitalPeriod: (87.97 / 365.25) * 60,
+        moons: [],
+        summary: 'Mercury is the smallest planet in the Solar System.'
+      },
+      {
+        name: 'Venus',
+        radius: 6,
+        orbitRadius: 90 * orbitScale,
+        color: 'yellow',
+        orbitalPeriod: (224.70 / 365.25) * 60,
+        moons: [],
+        summary: 'Venus is the second planet from the Sun.'
+      },
+      {
+        name: 'Earth',
+        radius: 6,
+        orbitRadius: 120 * orbitScale,
+        color: 'blue',
+        orbitalPeriod: 60,
+        moons: [
+          {
+            name: 'Moon',
+            radius: 2,
+            orbitRadius: 12,
+            color: 'white',
+            orbitalPeriod: (27.32 / 365.25) * 60,
+            summary: 'The Moon is Earth\'s only natural satellite.'
+          }
+        ],
+        summary: 'Earth is the third planet from the Sun and the only known planet to harbor life.'
+      },
+      {
+        name: 'Mars',
+        radius: 5,
+        orbitRadius: 170 * orbitScale,
+        color: 'red',
+        orbitalPeriod: (686.98 / 365.25) * 60,
+        moons: [
+          {
+            name: 'Phobos',
+            radius: 1,
+            orbitRadius: 8,
+            color: 'gray',
+            orbitalPeriod: (0.31891 / 365.25) * 60,
+            summary: 'Phobos is the larger and closer of Mars\' two moons.'
+          },
+          {
+            name: 'Deimos',
+            radius: 1,
+            orbitRadius: 10,
+            color: 'lightgray',
+            orbitalPeriod: (1.263 / 365.25) * 60,
+            summary: 'Deimos is the smaller and more distant of Mars\' two moons.'
+          }
+        ],
+        summary: 'Mars is the fourth planet from the Sun and is often referred to as the Red Planet.'
+      },
+      {
+        name: 'Jupiter',
+        radius: 12,
+        orbitRadius: 230 * orbitScale,
+        color: 'orange',
+        orbitalPeriod: (4332.59 / 365.25) * 60,
+        moons: [
+          {
+            name: 'Io',
+            radius: 2,
+            orbitRadius: 15,
+            color: 'yellow',
+            orbitalPeriod: (1.769 / 365.25) * 60,
+            summary: 'Io is the innermost of the four Galilean moons of Jupiter.'
+          },
+          {
+            name: 'Europa',
+            radius: 2,
+            orbitRadius: 18,
+            color: 'lightyellow',
+            orbitalPeriod: (3.551 / 365.25) * 60,
+            summary: 'Europa is the smallest of the four Galilean moons orbiting Jupiter.'
+          },
+          {
+            name: 'Ganymede',
+            radius: 3,
+            orbitRadius: 21,
+            color: 'gray',
+            orbitalPeriod: (7.155 / 365.25) * 60,
+            summary: 'Ganymede is the largest and most massive moon of Jupiter.'
+          },
+          {
+            name: 'Callisto',
+            radius: 3,
+            orbitRadius: 25,
+            color: 'darkgray',
+            orbitalPeriod: (16.689 / 365.25) * 60,
+            summary: 'Callisto is the second-largest moon of Jupiter.'
+          }
+        ],
+        summary: 'Jupiter is the largest planet in the Solar System.'
+      },
+      {
+        name: 'Saturn',
+        radius: 10,
+        orbitRadius: 300 * orbitScale,
+        color: 'goldenrod',
+        orbitalPeriod: (10759.22 / 365.25) * 60,
+        moons: [
+          {
+            name: 'Titan',
+            radius: 3,
+            orbitRadius: 25,
+            color: 'khaki',
+            orbitalPeriod: (15.945 / 365.25) * 60,
+            summary: 'Titan is the largest moon of Saturn.'
+          }
+        ],
+        summary: 'Saturn is known for its prominent ring system.'
+      },
+      {
+        name: 'Uranus',
+        radius: 8,
+        orbitRadius: 380 * orbitScale,
+        color: 'lightblue',
+        orbitalPeriod: (30688.5 / 365.25) * 60,
+        moons: [
+          {
+            name: 'Titania',
+            radius: 2,
+            orbitRadius: 18,
+            color: 'gray',
+            orbitalPeriod: (8.706 / 365.25) * 60,
+            summary: 'Titania is the largest moon of Uranus.'
+          }
+        ],
+        summary: 'Uranus is the seventh planet from the Sun.'
+      },
+      {
+        name: 'Neptune',
+        radius: 8,
+        orbitRadius: 480 * orbitScale,
+        color: 'blue',
+        orbitalPeriod: (60182 / 365.25) * 60,
+        moons: [
+          {
+            name: 'Triton',
+            radius: 2,
+            orbitRadius: 17,
+            color: 'lightblue',
+            orbitalPeriod: (5.877 / 365.25) * 60,
+            summary: 'Triton is the largest natural satellite of Neptune.'
+          }
+        ],
+        summary: 'Neptune is known for its deep blue color.'
+      },
+      {
+        name: 'Pluto',
+        radius: 3,
+        orbitRadius: 600 * orbitScale,
+        color: 'brown',
+        orbitalPeriod: (90560 / 365.25) * 60,
+        moons: [
+          {
+            name: 'Charon',
+            radius: 1,
+            orbitRadius: 8,
+            color: 'darkgray',
+            orbitalPeriod: (6.387 / 365.25) * 60,
+            summary: 'Charon is the largest moon of Pluto.'
+          }
+        ],
+        summary: 'Pluto is a dwarf planet in the Kuiper belt.'
+      }
+    ];
+
+    // Initial center position
+    let centerX = 0;
+    let centerY = 0;
+
+    // Resize canvas and adjust center
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      centerX = canvas.width / 2;
+      centerY = canvas.height / 2;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function draw() {
+      if (!isPaused) {
+        let now = Date.now();
+        let deltaTime = (now - lastTime) / 1000; // in seconds
+        lastTime = now;
+        time += deltaTime * speedMultiplier;
+      } else {
+        lastTime = Date.now(); // Reset lastTime to prevent jumps when unpausing
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      // Apply pan and zoom
+      ctx.translate(translatePos.x, translatePos.y);
+      ctx.scale(scale, scale);
+
+      // Draw orbit lines for planets
+      ctx.lineWidth = 1; // Default line width for planet orbits
+      bodies.forEach((body, index) => {
+        if (index === 0) return; // Skip Sun
+        // Draw orbit (ellipse due to tilt)
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, body.orbitRadius, body.orbitRadius * tilt, 0, 0, 2 * Math.PI);
+        ctx.strokeStyle = 'gray';
+        ctx.stroke();
+      });
+
+      // Draw orbit lines for moons
+      bodies.forEach(body => {
+        if (body.name === 'Sun') return; // Skip Sun
+        const angle = (2 * Math.PI * time) / body.orbitalPeriod;
+        const x = centerX + body.orbitRadius * Math.cos(angle);
+        const y = centerY + body.orbitRadius * Math.sin(angle) * tilt;
+
+        body.moons.forEach(moon => {
+          ctx.beginPath();
+          ctx.ellipse(x, y, moon.orbitRadius, moon.orbitRadius * tilt, 0, 0, 2 * Math.PI);
+          ctx.strokeStyle = 'gray';
+          ctx.lineWidth = 0.5; // Thinner line width for moon orbits
+          ctx.stroke();
+          ctx.lineWidth = 1; // Reset line width
+        });
+      });
+
+      // Draw moons behind planets (when they are in the northern half)
+      bodies.forEach(body => {
+        if (body.name === 'Sun') return; // Skip Sun
+        const angle = (2 * Math.PI * time) / body.orbitalPeriod;
+        const planetX = centerX + body.orbitRadius * Math.cos(angle);
+        const planetY = centerY + body.orbitRadius * Math.sin(angle) * tilt;
+
+        // Draw moons behind the planet
+        body.moons.forEach(moon => {
+          const moonAngle = (2 * Math.PI * time) / moon.orbitalPeriod;
+          const moonX = planetX + moon.orbitRadius * Math.cos(moonAngle);
+          const moonY = planetY + moon.orbitRadius * Math.sin(moonAngle) * tilt;
+
+          // Determine if moon is in northern half (behind the planet)
+          const relativeY = moonY - planetY;
+          if (relativeY < 0) {
+            // Moon is behind the planet
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, moon.radius, 0, 2 * Math.PI);
+            ctx.fillStyle = moon.color;
+            ctx.fill();
+
+            // Draw selection if this is the selected moon
+            if (selectedBody === moon) {
+              drawSelectionPins(moonX, moonY, moon.radius);
+            }
+
+            // Save position for hit detection
+            moon.screenX = moonX;
+            moon.screenY = moonY;
+            moon.parentBody = body;
+          }
+        });
+      });
+
+      // Draw planets
+      bodies.forEach(body => {
+        let x, y;
+        if (body.name === 'Sun') {
+          x = centerX;
+          y = centerY;
+        } else {
+          const angle = (2 * Math.PI * time) / body.orbitalPeriod;
+          x = centerX + body.orbitRadius * Math.cos(angle);
+          y = centerY + body.orbitRadius * Math.sin(angle) * tilt;
+        }
+
+        // Draw planet
+        ctx.beginPath();
+        ctx.arc(x, y, body.radius, 0, 2 * Math.PI);
+        ctx.fillStyle = body.color;
+        ctx.fill();
+
+        // Draw selection if this is the selected body
+        if (selectedBody === body) {
+          drawSelectionPins(x, y, body.radius);
+        }
+
+        // Save position for hit detection
+        body.screenX = x;
+        body.screenY = y;
+      });
+
+      // Draw moons in front of planets (when they are in the southern half)
+      bodies.forEach(body => {
+        if (body.name === 'Sun') return; // Skip Sun
+        const angle = (2 * Math.PI * time) / body.orbitalPeriod;
+        const planetX = centerX + body.orbitRadius * Math.cos(angle);
+        const planetY = centerY + body.orbitRadius * Math.sin(angle) * tilt;
+
+        // Draw moons in front of the planet
+        body.moons.forEach(moon => {
+          const moonAngle = (2 * Math.PI * time) / moon.orbitalPeriod;
+          const moonX = planetX + moon.orbitRadius * Math.cos(moonAngle);
+          const moonY = planetY + moon.orbitRadius * Math.sin(moonAngle) * tilt;
+
+          // Determine if moon is in southern half (in front of the planet)
+          const relativeY = moonY - planetY;
+          if (relativeY >= 0) {
+            // Moon is in front of the planet
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, moon.radius, 0, 2 * Math.PI);
+            ctx.fillStyle = moon.color;
+            ctx.fill();
+
+            // Draw selection if this is the selected moon
+            if (selectedBody === moon) {
+              drawSelectionPins(moonX, moonY, moon.radius);
+            }
+
+            // Save position for hit detection
+            moon.screenX = moonX;
+            moon.screenY = moonY;
+            moon.parentBody = body;
+          }
+        });
+      });
+
+      // Draw labels last so they appear above everything
+      bodies.forEach(body => {
+        let x, y;
+        if (body.name === 'Sun') {
+          x = centerX;
+          y = centerY;
+        } else {
+          const angle = (2 * Math.PI * time) / body.orbitalPeriod;
+          x = centerX + body.orbitRadius * Math.cos(angle);
+          y = centerY + body.orbitRadius * Math.sin(angle) * tilt;
+        }
+
+        // Adjust font size for readability when zoomed
+        let fontSize = 12 * Math.pow(scale, 0.3);
+        fontSize = Math.min(Math.max(fontSize, 10), 16); // Font size between 10px and 16px
+
+        // Draw planet label
+        ctx.save();
+        ctx.scale(1 / scale, 1 / scale); // Counteract current scale
+        ctx.fillStyle = 'white';
+        ctx.font = `${fontSize}px Arial`;
+        ctx.fillText(body.name, (x + body.radius + 3) * scale, y * scale);
+        ctx.restore();
+
+        // Draw moons' labels
+        body.moons.forEach(moon => {
+          const moonX = moon.screenX;
+          const moonY = moon.screenY;
+
+          let moonFontSize = 9 * Math.pow(scale, 0.3);
+          moonFontSize = Math.min(Math.max(moonFontSize, 8), 14); // Font size between 8px and 14px
+
+          ctx.save();
+          ctx.scale(1 / scale, 1 / scale); // Counteract current scale
+          ctx.fillStyle = 'white';
+          ctx.font = `${moonFontSize}px Arial`;
+          ctx.fillText(moon.name, (moonX + moon.radius + 2) * scale, moonY * scale);
+          ctx.restore();
+        });
+      });
+
+      ctx.restore();
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    // Draw selection pins around the selected body
+    function drawSelectionPins(x, y, radius) {
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2;
+      const offset = radius + 5;
+      const pinLength = 10;
+
+      // Top-left
+      ctx.beginPath();
+      ctx.moveTo(x - offset, y - offset + pinLength);
+      ctx.lineTo(x - offset, y - offset);
+      ctx.lineTo(x - offset + pinLength, y - offset);
+      ctx.stroke();
+
+      // Top-right
+      ctx.beginPath();
+      ctx.moveTo(x + offset - pinLength, y - offset);
+      ctx.lineTo(x + offset, y - offset);
+      ctx.lineTo(x + offset, y - offset + pinLength);
+      ctx.stroke();
+
+      // Bottom-left
+      ctx.beginPath();
+      ctx.moveTo(x - offset, y + offset - pinLength);
+      ctx.lineTo(x - offset, y + offset);
+      ctx.lineTo(x - offset + pinLength, y + offset);
+      ctx.stroke();
+
+      // Bottom-right
+      ctx.beginPath();
+      ctx.moveTo(x + offset - pinLength, y + offset);
+      ctx.lineTo(x + offset, y + offset);
+      ctx.lineTo(x + offset, y + offset - pinLength);
+      ctx.stroke();
+    }
+
+    // Event listeners for pan and zoom
+    let isDragging = false;
+    let touchStartTime = 0;
+
+    canvas.addEventListener('touchstart', function(e) {
+      if (isZoomedIn) return; // Disable pan and zoom when zoomed in
+      touchStartTime = Date.now();
+      if (e.touches.length === 1) {
+        // Single touch - pan or tap
+        isDragging = true;
+        lastTouchPosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.touches.length === 2) {
+        // Two fingers - zoom
+        isDragging = false;
+        lastTouchDistance = getDistance(e.touches[0], e.touches[1]);
+        lastTouchPosition = getCenter(e.touches[0], e.touches[1]);
+      }
+    });
+
+    canvas.addEventListener('touchmove', function(e) {
+      if (isZoomedIn) return; // Disable pan and zoom when zoomed in
+      e.preventDefault(); // Prevent scrolling
+      if (e.touches.length === 1 && isDragging) {
+        // Pan
+        let touch = e.touches[0];
+        let dx = touch.clientX - lastTouchPosition.x;
+        let dy = touch.clientY - lastTouchPosition.y;
+        translatePos.x += dx;
+        translatePos.y += dy;
+        lastTouchPosition = { x: touch.clientX, y: touch.clientY };
+      } else if (e.touches.length === 2) {
+        // Zoom
+        let touch1 = e.touches[0];
+        let touch2 = e.touches[1];
+        let currentDistance = getDistance(touch1, touch2);
+        let scaleChange = currentDistance / lastTouchDistance;
+        lastTouchDistance = currentDistance;
+
+        let currentPosition = getCenter(touch1, touch2);
+
+        // Calculate the position before scaling
+        let prevPos = screenToWorld(currentPosition.x, currentPosition.y);
+
+        // Update scale
+        scale *= scaleChange;
+
+        // Calculate the position after scaling
+        let newPos = screenToWorld(currentPosition.x, currentPosition.y);
+
+        // Adjust translatePos to keep the content under the fingers
+        translatePos.x += (newPos.x - prevPos.x) * scale;
+        translatePos.y += (newPos.y - prevPos.y) * scale;
+
+        lastTouchPosition = currentPosition;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', function(e) {
+      if (e.touches.length === 0 && isDragging) {
+        let touchDuration = Date.now() - touchStartTime;
+        if (touchDuration < 200) {
+          // Treat as tap
+          let touch = e.changedTouches[0];
+          handleTap(touch.clientX, touch.clientY);
+        }
+        isDragging = false;
+        lastTouchPosition = null;
+      }
+      if (e.touches.length < 2) {
+        lastTouchDistance = null;
+      }
+    });
+
+    // Handle tap to select/deselect bodies
+    function handleTap(clientX, clientY) {
+      let x = (clientX - translatePos.x) / scale;
+      let y = (clientY - translatePos.y) / scale;
+
+      // Check if tap is on any planet, moon, or the Sun
+      let bodyFound = null;
+      for (let body of bodies) {
+        let dx = x - body.screenX;
+        let dy = y - body.screenY;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= body.radius + 5) {
+          bodyFound = body;
+          break;
+        }
+        // Check moons
+        for (let moon of body.moons) {
+          let mdx = x - moon.screenX;
+          let mdy = y - moon.screenY;
+          let mdistance = Math.sqrt(mdx * mdx + mdy * mdy);
+          if (mdistance <= moon.radius + 5) {
+            bodyFound = moon;
+            break;
+          }
+        }
+        if (bodyFound) break;
+      }
+
+      if (bodyFound) {
+        if (selectedBody === bodyFound) {
+          // Body already selected
+          return;
+        }
+        selectedBody = bodyFound;
+        showZoomButton();
+      } else {
+        if (!isZoomedIn) {
+          // Tap on empty space
+          selectedBody = null;
+          hideZoomButton();
+        }
+        // Do not deselect when zoomed in
+      }
+    }
+
+    // Utility functions for touch events
+    function getDistance(touch1, touch2) {
+      return Math.hypot(
+        touch1.clientX - touch2.clientX,
+        touch1.clientY - touch2.clientY
+      );
+    }
+
+    function getCenter(touch1, touch2) {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    }
+
+    function screenToWorld(x, y) {
+      return {
+        x: (x - translatePos.x) / scale,
+        y: (y - translatePos.y) / scale
+      };
+    }
+
+    // Event listeners for buttons
+    const pausePlayBtn = document.getElementById('pausePlayBtn');
+    const slowDownBtn = document.getElementById('slowDownBtn');
+    const speedUpBtn = document.getElementById('speedUpBtn');
+
+    pausePlayBtn.addEventListener('click', function() {
+      isPaused = !isPaused;
+      pausePlayBtn.textContent = isPaused ? 'Play' : 'Pause';
+    });
+
+    slowDownBtn.addEventListener('click', function() {
+      speedMultiplier /= 2;
+      if (speedMultiplier < 0.0625) speedMultiplier = 0.0625; // Minimum speed
+    });
+
+    speedUpBtn.addEventListener('click', function() {
+      speedMultiplier *= 2;
+      if (speedMultiplier > 16) speedMultiplier = 16; // Maximum speed
+    });
+
+    // Functions to show/hide the Zoom In/Out button
+    function showZoomButton() {
+      if (!zoomInBtn) {
+        zoomInBtn = document.createElement('button');
+        zoomInBtn.id = 'zoomInBtn';
+        zoomInBtn.textContent = 'Zoom In';
+        zoomInBtn.style.padding = '15px';
+        zoomInBtn.style.marginRight = '5px';
+        zoomInBtn.style.fontSize = '18px';
+        document.getElementById('controls').appendChild(zoomInBtn);
+
+        zoomInBtn.addEventListener('click', function() {
+          if (!isZoomedIn) {
+            zoomIn();
+          } else {
+            zoomOut();
+          }
+        });
+      }
+    }
+
+    function hideZoomButton() {
+      if (zoomInBtn) {
+        zoomInBtn.remove();
+        zoomInBtn = null;
+      }
+    }
+
+    // Zoom In function
+    function zoomIn() {
+      if (!selectedBody) return;
+      isZoomedIn = true;
+      zoomInBtn.textContent = 'Zoom Out';
+      isPaused = true;
+      pausePlayBtn.textContent = 'Play';
+      showSummaryBox();
+
+      // Animate zoom and pan
+      animateZoomPan(selectedBody);
+    }
+
+    // Zoom Out function
+    function zoomOut() {
+      isZoomedIn = false;
+      zoomInBtn.textContent = 'Zoom In';
+      hideSummaryBox();
+
+      // Reset zoom and pan to default
+      animateZoomPan(null);
+    }
+
+    // Function to animate zoom and pan
+    function animateZoomPan(targetBody) {
+      let startScale = scale;
+      let endScale = targetBody ? 6 : 1; // Increased zoom level
+      let startX = translatePos.x;
+      let startY = translatePos.y;
+      let endX, endY;
+
+      if (targetBody) {
+        // Calculate the end position to bring the body to the right side
+        const targetX = (canvas.width * 0.75) / endScale; // Right side of the screen
+        const targetY = canvas.height / (2 * endScale);
+
+        endX = -((targetBody.screenX - targetX) * endScale);
+        endY = -((targetBody.screenY - targetY) * endScale);
+      } else {
+        endX = 0;
+        endY = 0;
+      }
+
+      let startTime = null;
+      function animate(timestamp) {
+        if (!startTime) startTime = timestamp;
+        let progress = (timestamp - startTime) / 1000; // Animation duration: 1 second
+        if (progress > 1) progress = 1;
+
+        // Ease in-out function
+        let easedProgress = progress < 0.5
+          ? 2 * progress * progress
+          : -1 + (4 - 2 * progress) * progress;
+
+        scale = startScale + (endScale - startScale) * easedProgress;
+        translatePos.x = startX + (endX - startX) * easedProgress;
+        translatePos.y = startY + (endY - startY) * easedProgress;
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    // Show summary box
+    function showSummaryBox() {
+      const summaryBox = document.getElementById('summaryBox');
+      summaryBox.style.display = 'block';
+      summaryBox.innerHTML = `
+        <h2>${selectedBody.name}</h2>
+        <p>${selectedBody.summary}</p>
+      `;
+    }
+
+    // Hide summary box
+    function hideSummaryBox() {
+      const summaryBox = document.getElementById('summaryBox');
+      summaryBox.style.display = 'none';
+      summaryBox.innerHTML = '';
+    }
+  </script>
+</body>
+</html>
