@@ -84,9 +84,7 @@
     const tilt = 0.5;        // Tilt factor for 3D effect
 
     // Planet and moon data
-    import system_dict from './system_dict.js';
-
-    /*const bodies = [
+    const bodies = [
       {
         name: 'Sun',
         radius: 14,
@@ -272,7 +270,7 @@
         ],
         summary: 'Pluto is a dwarf planet in the Kuiper belt.'
       }
-    ];*/
+    ];
 
     // Initial center position
     let centerX = 0;
@@ -287,20 +285,6 @@
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
-
-    function body_dict_to_array(body_dict) {
-      body_dict['orbits'] = null
-      var arr = [body_dict]
-      var child_arr = []
-      for (satellite in body_dict['satellites']) {
-        child_arr.append(body_dict_to_array(satellite))
-      }
-      for (child in child_arr) {
-        child['orbits'] = body_dict['name']
-      }
-      arr.append_array(child_arr)
-      return arr
-    }
 
     function draw() {
       if (!isPaused) {
