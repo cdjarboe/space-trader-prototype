@@ -9,7 +9,7 @@ export class CelestialBody {
         this.orbitRadius = orbitRadius;
         this.orbitalPeriod = orbitalPeriod;
         this.type = type; // "sun", "planet", or "moon"
-        this.satellites = satellites; // Array of CelestialBody objects
+        this.satellites = []; // satellites; // Array of CelestialBody objects
         this.velocity = Math.sqrt((gravitational_constant * this.parent.getMass()) / this.orbitRadius); // Orbital velocity in m/s
         this.angle = startAngle; // Angle in radians
         this.parent = parent; // Parent celestial body (if any)
@@ -19,6 +19,21 @@ export class CelestialBody {
         } else {
             this.x = this.parent.x + this.orbitRadius * Math.cos(startAngle); // X position in the solar system
             this.y = this.parent.y + this.orbitRadius * Math.sin(startAngle); // Y position in the solar system
+        }
+
+        for (let satellite of satellites) {
+            this.satellites.push(new CelestialBody(
+                satellite['name'],
+                satellite['color'],
+                satellite['mass'],
+                satellite['radius'],
+                satellite['orbitRadius'],
+                satellite['orbitalPeriod'],
+                satellite['type'],
+                satellite['satellites'],
+                this,
+                0
+            ));
         }
 
     }
